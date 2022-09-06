@@ -43,9 +43,9 @@ There are three high-level steps involved in sending traces to Dynatrace.
 
 ### 1.) Instrumenting the application with OpenTelemetry
 
-The first step in getting traces to Dynatrace is instrumenting your code with OpenTelemetry to capture the telemetry data. There are two different approaches you can take: manual or automatic instrumentation. Manual instrumentation provides developers with a set of core tools (OpenTelemetry API & SDK) to manually configure the areas of their application they want monitored. If manual instrumentation isn't preferred, auto-instrumentation can be used. For every language/technology that OpenTelemetry supports, there are generally auto-instrumentation libraries provided for common frameworks used in the language. It is recommended to utilize auto-instrumentation libraries when possible as it reduces the chance of errors being introduced into your application and also reduces the amount of future maintenance required as the library author is responsible for maintaining the instrumentation.
+The first step in getting traces to Dynatrace is instrumenting your code with OpenTelemetry to capture the telemetry data. There are two different approaches you can take: manual or automatic instrumentation. Manual instrumentation provides developers with a set of core tools (OpenTelemetry API & SDK) to manually configure the areas of their application they want monitored. If manual instrumentation isn't preferred, auto-instrumentation can be used. For every language/technology that OpenTelemetry supports, there are generally auto-instrumentation libraries provided for common frameworks used in the language. It is recommended to utilize auto-instrumentation libraries when possible as it reduces the chance of errors being introduced into your application and also reduces the amount of future maintenance required as the library author is responsible for maintaining the instrumentation instead of application developers.
 
-For auto-instrumentation setups, generally all that's required is the library be imported into the application along with a setup call that provides some additonal context (Data source spefific configuration, Exporter configuration, Propagator configuration, Resource configuration). (REWORD)
+For auto-instrumentation setups, generally all that's required is the library be imported into the application along with a setup call that provides some additonal context (Data source specific configuration, Exporter configuration, Propagator configuration, Resource configuration). (REWORD)
 
 This lab will combine both forms of instrumentation. Our Retail Application uses manual instrumentation to capture some requests related to the cart functionality, while our Currency Service utilizes auto-instrumentation for telemetry. Please refer to the code for additional details on how it is done.
 
@@ -63,15 +63,19 @@ If you decide to use OpenTelemetry without a OneAgent, you will need to configur
 
 ### 3.) Sending the traces to Dynatrace
 
-Once you have completed the first two steps, the last step is to generate traces by interacting with your application. The OneAgent or configured exporter will automatically send the traces back to Dynatrace to aggregation and analysis. There are some additional configurations you can set in the Dynatrace UI, which will be covered later in this lab.
+Once you have completed the first two steps, the last step is to generate traces by interacting with your application. The OneAgent or configured exporter will automatically send the traces back to Dynatrace for aggregation and analysis. There are some additional configurations you can set in the Dynatrace UI, which will be covered later in this lab.
 
 <!-- ------------------------ -->
 
 ## Retail Application Architecture
 
-Before we begin, let's review the architecture of the Retail Application. There are two main components we'll need to know about: the Retail Application and the Currency Service.
+Before we begin, let's review the architecture of the Retail Application. There are two main components we need to be familiar with: the Retail Application and the Currency Service.
 
 ![App-Architecture](assets/app-architecture.png)
+
+The Retail application is a simple Django app written in Python. It simulates a basic ecommerce website with various products that can be added to a cart and purchased. Our cart UI has a button labeled "Convert Currency" that can be used to convert the cart total from USD to EUR. Everytime the cart page is accessed, the Retail application makes an HTTP request to the Currency Service to convert the cart total from USD to EUR. When the button in the UI is clicked, a browser popup with the conversion total appears. The popup will display "-1" if an error has occurred.
+
+The Currency service is a Node.js application written using the Express framework. It takes requests with a USD currency total and returns the appropriate EUR conversion.
 
 <!-- ------------------------ -->
 
@@ -237,7 +241,7 @@ Now, we'll run the Currency Service with OpenTelemetry instrumentation:
 node --require ./tracing.js server-http.js &
 ```
 
-After going back to `AWS-IP:80` and generating traffic, we should see both Retail App and Currency Service spans showing up on the Distributed Traces page.
+After going back to `AWS-IP:80` and generating traffic, we should see both Retail App and Currency Service spans showing up on the Distributed Traces page. If you click back into the `Request to Currency Service` trace, we should also see the `conversion_total` attribute now displaying properly.
 
 <!-- ------------------------ -->
 
