@@ -43,11 +43,11 @@ There are three high-level steps involved in sending traces to Dynatrace.
 
 ### 1.) Instrumenting the application with OpenTelemetry
 
-The first step in getting traces to Dynatrace is instrumenting your code with OpenTelemetry to capture the telemetry data. There are two different approaches you can take: manual or automatic instrumentation. Manual instrumentation provides developers with a set of core tools (OpenTelemetry API & SDK) to manually configure the areas of their application they want monitored. If manual instrumentation isn't preferred, auto-instrumentation can be used. For every language/technology that OpenTelemetry supports, there are generally auto-instrumentation libraries provided for common frameworks used in the language. It is recommended to utilize auto-instrumentation libraries when possible as it reduces the chance of errors being introduced into your application and also reduces the amount of future maintenance required as the library author is responsible for maintaining the instrumentation instead of application developers.
+The first step in getting traces to Dynatrace is instrumenting your code with OpenTelemetry to capture the telemetry data. There are two different approaches you can take: manual or automatic instrumentation. Manual instrumentation provides developers with a set of core tools (OpenTelemetry API & SDK) to manually configure the areas of their application they want monitored. If manual instrumentation isn't preferred, auto-instrumentation can be used. For every language/technology that OpenTelemetry supports, there are auto-instrumentation libraries provided for common frameworks used in the language. It is recommended to utilize auto-instrumentation libraries when possible as it reduces the chance of errors being introduced into your application and also reduces the amount of future maintenance required as the library author is responsible for maintaining the instrumentation instead of application developers.
 
 For auto-instrumentation setups, generally all that's required is the library be imported into the application along with a setup call that provides some additonal context (Data source specific configuration, Exporter configuration, Propagator configuration, Resource configuration). (REWORD)
 
-This lab will combine both forms of instrumentation. Our Retail Application uses manual instrumentation to capture some requests related to the cart functionality, while our Currency Service utilizes auto-instrumentation for telemetry. Please refer to the code for additional details on how it is done.
+This lab will combine both forms of instrumentation. Our Retail Application uses manual instrumentation to capture some requests related to the cart functionality, while our Currency Service utilizes auto-instrumentation for telemetry. We will break down these instrumentations further in later steps.
 
 ### 2.) Preparing Dynatrace to receive our traces
 
@@ -81,7 +81,7 @@ The Currency service is a Node.js application written using the Express framewor
 
 ## Start the Currency Service
 
-Traverse to the Currency Service directory:
+Lets begin by starting our Currency Service. Traverse to the Currency Service directory:
 
 ```bash
 cd currencyservice
@@ -108,6 +108,10 @@ node server-http.js &
 <!-- ------------------------ -->
 
 ## Start the Retail Application
+
+Before we start our Retail Application, lets go into a little more detail regarding the manual instrumentation process for this application. When manually instrumenting applications/services, you're going to be using either the OpenTelemetry API, SDK, or both. Oftentimes there's a lot of confusion regarding the API, SDK, and when they're needed. An API is an application programming interface, and the OpenTelemetry API is the object we interface with to accomplish most of our monitoring functionality.
+
+When imported, the OpenTelemetry trace API creates a global singleton object that lives across the entire scope of your application/service. When we want to create a span to monitor a particular function within the application, we ask the OpenTelemetry API to give us a tracer object that can be called directly to create our spans. One important thing to note, is that the OpenTelemetry API does not come with a default TracerProvider - The object needed to create tracer objects - we need to configure it with one via the SDK. Without a TracerProvider assigned, the OpenTelemetry trace API will just return a tracer object that NoOps (No Operation) when called, doing nothing. The OpenTelemetry API should only be used by itself if you are developing a library or another component that will be consumed by a runnable binary. This allows library authors to add OpenTelemetry instrumentation support without forcing the users of the library to actually utilize OpenTelemetry. This is where the OpenTelemetry SDK comes in.
 
 Navigate to the `/home/otelworkshop/retailapp` folder by using the following command:
 
@@ -176,32 +180,60 @@ We can now start our application with Gunicorn. Navigate to the src directory an
 
 ```bash
 cd src
-gunicorn --bind 0.0.0.0:3005 ecommerce.wsgi:application -c gunicorn.config.py &
+gunicorn --bind 0.0.0.0:3005 ecommerce.wsgi:application -c gunicorn.config.py
 ```
 
 Verify the application started successfully by accessing `AWS-IP:80` in your browser.
 
 <!-- ------------------------ -->
 
-## Load Retailapp in Browser
+## Load Retailapp in Browser And View Traces in Dynatrace
 
 Since the Retail Application is utilizing manual instrumentation, only the parts of the application we instrumented will generate traces. For this lab, most of the functionality surrounding the cart is instrumented. Create an account on the Retail Application to begin adding items to it. Once logged in, add items to your cart and navigate to the cart page to view your total. If the steps were followed correctly, clicking on the convert button should generate a browser pop-up that will display our total in Euro's.
 
+After loading the application in your browser and testing the cart functionality, you should notice that something is broken. Our convert button is returning a "-1". Let's take a closer look in Dynatrace to see what's happening. If we look at the generated traces on the distributed traces page, there's a span event on our request indicating the request has failed. In order to view attributes and event attributes in Dynatrace Traces, they need to be whitelisted first. Go ahead and whitelist the event attribute, then generate some more traces so we can get details regarding the request failure.
+
+<!-- ADD IMAGE FOR SPAN EVENT MESSAGE -->
+
+After generating addional traces, you should now be able to see the `error_message` event attribute that was raised on the Python application following the attempted conversion request. It appears that our Python application is reaching out to port 6999, instead of the port we set the Currency Service to listen on (7000). We should be able to fix the problem by adjusting the `CURRENCYSERVICE_URL` environment variable in our setenv script.
+
+Hit `Ctr + C` to stop the application.
+
+Open our setenv script
+
+```bash
+nano ../bin/setenv
+```
+
+Adjust the value of `CURRENCYSERVICE_URL` to `http://localhost:7000`, then save and close the file.
+
+We need to reset the environment varables
+
+```bash
+source ../bin/setenv
+```
+
+Now, start the Retail Application again and try to convert the currency.
+
+```bash
+gunicorn --bind 0.0.0.0:3005 ecommerce.wsgi:application -c gunicorn.config.py &
+```
+
 <!-- ------------------------ -->
 
-## View Traces in Dynatrace and Whitelist Attributes
+## Whitelist Additional Attributes
 
-At this point, we should have some traces to view in our Dynatrace tenant from the Retail application. Our Currency Service won't have any yet, as we did not enable auto-instrumentation. Navigate to the Distributed Traces page within the Applications & Microservices menu section and click into the `Request to Currency Service` PurePath. Within our trace summary, notice the two sections 'Attributes' and 'Resource Attributes'.
+Lets take a closer look at the traces we generated. Navigate to the Distributed Traces page within the Applications & Microservices menu section and click into the `Request to Currency Service` PurePath. If we resolved our previous issue, you should notice that the newly ingested spans no longer contain a span event indicating a request failure. Instead, you should see two sections 'Attributes' and 'Resource Attributes' within the trace summary.
 
 ![attributes](assets/attributes.png)
 
-OpenTelemetry allows you to provide metadata about your Resources and the Spans they emit via key-value pairs called attributes. We have created a span attribute called `conversion_total` to track the conversion amount returned by the Currency Service. It can be seen that Dynatrace is detecting it within the span attribute section. Attributes need to be whitelisted in Dynatrace in order to show up within PurePaths. To whitelist the span attribute, you can either do it directly from the indicators in the trace summary or from the Server-side service monitoring section of the Settings menu. Note that we won't see the attribute values in Dynatrace until we generate more traces.
+OpenTelemetry allows you to provide metadata about your Resources and the Spans they emit via key-value pairs called attributes. We have created a span attribute called `conversion_total` to track the conversion amount returned by the Currency Service. It can be seen that Dynatrace is detecting it within the span attribute section. Like Span event attributes, span attributes need to be whitelisted in Dynatrace in order to show up within Traces. To whitelist the span attribute, you can either do it directly from the indicators in the trace summary or from the Server-side service monitoring section of the Settings menu. Note that we won't see the attribute values in Dynatrace until we generate more traces.
 
 <!-- ------------------------ -->
 
 ## Enable Auto-Instrumentation on Currency Service
 
-In this step, you will be stopping the running instance of our Currency Service and starting another with auto-instrumentation enabled for additional visibility in Dynatrace.
+In this step, you will be stopping the running instance of our Currency Service and starting another with auto-instrumentation enabled for additional visibility in Dynatrace. Let's go over auto-instrumentation in some more detail before continuing. Similar to manual instrumentation, the goal of auto-instrumentation is to create observability in our application. The main difference here is who maintains the instrumentation. While manual instrumentation requires the application authors to instrument and maintain the application how they see fit, automatic instrumentation allows the application authors to use already instrumented libraries and push the maintenance responsibility back to the library authors. In our Currency Service, we're utilizing the common Express framework to run our serivce. Luckily, OpenTelemetry provides an auto-instrumentation package for the Express framework. All we need to do is configure the exporters and processors needed to process and export the data, as well as a Resource object defining the resource that is to be monitored. After that, a simple setup call will begin the instrumentation.
 
 Navigate back to the Currency Service directory:
 
