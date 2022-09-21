@@ -75,6 +75,8 @@ Before we begin, let's review the architecture of the Retail Application. There 
 
 The Retail application is a simple Django app written in Python. It simulates a basic ecommerce website with various products that can be added to a cart and purchased. Our cart UI has a button labeled "Convert Currency" that can be used to convert the cart total from USD to EUR. Everytime the cart page is accessed, the Retail application makes an HTTP request to the Currency Service to convert the cart total from USD to EUR. When the button in the UI is clicked, a browser popup with the conversion total appears. The popup will display "-1" if an error has occurred.
 
+![alert-banner](assets/alert-banner.png)
+
 The Currency service is a Node.js application written using the Express framework. It takes requests with a USD currency total and returns the appropriate EUR conversion.
 
 <!-- ------------------------ -->
@@ -158,7 +160,7 @@ To properly run our Retail application, we need to gather the following informat
 4. Give your token a name, then add the `openTelemetryTrace.ingest` permission within the token scope.
 5. Click **Generate Token** at the bottom of the page to create the API Token, make sure to copy the token value and save it somewhere you'll remember, as we won't be able to retreive this value again.
 
-![generate-api-token](assets/create-api-token.png)
+![generate-api-token](assets/api-token.gif)
 
 ### Generate Dynatrace Trace Ingest Enpoint
 
@@ -201,9 +203,11 @@ Since the Retail Application is utilizing manual instrumentation, only the parts
 
 After loading the application in your browser and testing the cart functionality, you should notice that something is broken. Our convert button is returning a "-1". Let's take a closer look in Dynatrace to see what's happening. If we look at the generated traces on the distributed traces page, there's a span event on our request indicating the request has failed. In order to view attributes and event attributes in Dynatrace Traces, they need to be whitelisted first. Go ahead and whitelist the event attribute, then generate some more traces so we can get details regarding the request failure.
 
-<!-- ADD IMAGE FOR SPAN EVENT MESSAGE -->
+![add-event-attribute](assets/add-event-attribute.gif)
 
 After generating addional traces, you should now be able to see the `error_message` event attribute that was raised on the Python application following the attempted conversion request. It appears that our Python application is reaching out to port 6999, instead of the port we set the Currency Service to listen on (7000). We should be able to fix the problem by adjusting the `CURRENCYSERVICE_URL` environment variable in our setenv script.
+
+![event-attribute](assets/event-attribute.png)
 
 Hit `Ctr + C` to stop the application.
 
@@ -215,7 +219,7 @@ nano ../bin/setenv
 
 Adjust the value of `CURRENCYSERVICE_URL` to `http://localhost:7000`, then save and close the file.
 
-We need to reset the environment varables
+We need to reset the environment variables
 
 ```bash
 source ../bin/setenv
@@ -231,17 +235,17 @@ gunicorn --bind 0.0.0.0:3005 ecommerce.wsgi:application -c gunicorn.config.py &
 
 ## Whitelist Additional Attributes
 
-Lets take a closer look at the traces we generated. Navigate to the Distributed Traces page within the Applications & Microservices menu section and click into the `Request to Currency Service` PurePath. If we resolved our previous issue, you should notice that the newly ingested spans no longer contain a span event indicating a request failure. Instead, you should see two sections 'Attributes' and 'Resource Attributes' within the trace summary.
-
-![attributes](assets/attributes.png)
+Lets take a closer look at the traces we generated. Navigate to the Distributed Traces page and click into the most recent `Request to Currency Service` trace. If we resolved our previous issue, you should notice that the newly ingested spans no longer contain a span event indicating a request failure. Instead, you should see two sections 'Attributes' and 'Resource Attributes' within the trace summary.
 
 OpenTelemetry allows you to provide metadata about your Resources and the Spans they emit via key-value pairs called attributes. We have created a span attribute called `conversion_total` to track the conversion amount returned by the Currency Service. It can be seen that Dynatrace is detecting it within the span attribute section. Like Span event attributes, span attributes need to be whitelisted in Dynatrace in order to show up within Traces. To whitelist the span attribute, you can either do it directly from the indicators in the trace summary or from the Server-side service monitoring section of the Settings menu. Note that we won't see the attribute values in Dynatrace until we generate more traces.
+
+![attributes](assets/save-attribute.gif)
 
 <!-- ------------------------ -->
 
 ## Enable Auto-Instrumentation on Currency Service
 
-In this step, you will be stopping the running instance of our Currency Service and starting another with auto-instrumentation enabled for additional visibility in Dynatrace. Let's go over auto-instrumentation in some more detail before continuing. Similar to manual instrumentation, the goal of auto-instrumentation is to create observability in our application. The main difference here is who maintains the instrumentation. While manual instrumentation requires the application authors to instrument and maintain the application how they see fit, automatic instrumentation allows the application authors to use already instrumented libraries and push the maintenance responsibility back to the library authors. In our Currency Service, we're utilizing the common Express framework to run our serivce. Luckily, OpenTelemetry provides an auto-instrumentation package for the Express framework. All we need to do is configure the exporters and processors needed to process and export the data, as well as a Resource object defining the resource that is to be monitored. After that, a simple setup call will begin the instrumentation.
+In this step, you will be stopping the running instance of our Currency Service and starting another with auto-instrumentation enabled for additional visibility in Dynatrace. Let's go over auto-instrumentation in some more detail before continuing. Similar to manual instrumentation, the goal of auto-instrumentation is to create observability in our application. The main difference here is who maintains the instrumentation. While manual instrumentation requires the application authors to instrument and maintain the application how they see fit, automatic instrumentation allows the application authors to use already instrumented libraries and push the maintenance responsibility back to the library authors. In our Currency Service, we're utilizing the common Express framework to run our serivce. Luckily, OpenTelemetry provides an auto-instrumentation package for the Express framework. All we need to do is configure the exporters and processors needed to process and export the data, as well as a Resource object defining the resource that is to be monitored (also required in manual instrumentation). After that, a simple setup call will begin the instrumentation.
 
 Navigate back to the Currency Service directory:
 
@@ -317,3 +321,5 @@ gunicorn --bind 0.0.0.0:3005 ecommerce.wsgi:application -c gunicorn.config.py &
 ## Load Retailapp again
 
 Re-visit the retail application in your browser and add a few more items to your cart. After visiting your cart, you should notice nested traces beginning to appear in your Dynatrace tenant.
+
+![context-propagation-trace](assets/context-propagation.png)
