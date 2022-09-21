@@ -109,9 +109,17 @@ node server-http.js &
 
 ## Start the Retail Application
 
-Before we start our Retail Application, lets go into a little more detail regarding the manual instrumentation process for this application. When manually instrumenting applications/services, you're going to be using either the OpenTelemetry API, SDK, or both. Oftentimes there's a lot of confusion regarding the API, SDK, and when they're needed. An API is an application programming interface, and the OpenTelemetry API is the object we interface with to accomplish most of our monitoring functionality.
+Before we start our Retail Application, lets go into a little more detail regarding the manual instrumentation process for this application. When manually instrumenting applications/services, you're going to be using either the OpenTelemetry API, SDK, or both. Oftentimes there's a lot of confusion regarding the API, SDK, and when they're needed. An API is an application programming interface, and the OpenTelemetry API is the object we interface with to accomplish most of our monitoring needs.
 
-When imported, the OpenTelemetry trace API creates a global singleton object that lives across the entire scope of your application/service. When we want to create a span to monitor a particular function within the application, we ask the OpenTelemetry API to give us a tracer object that can be called directly to create our spans. One important thing to note, is that the OpenTelemetry API does not come with a default TracerProvider - The object needed to create tracer objects - we need to configure it with one via the SDK. Without a TracerProvider assigned, the OpenTelemetry trace API will just return a tracer object that NoOps (No Operation) when called, doing nothing. The OpenTelemetry API should only be used by itself if you are developing a library or another component that will be consumed by a runnable binary. This allows library authors to add OpenTelemetry instrumentation support without forcing the users of the library to actually utilize OpenTelemetry. This is where the OpenTelemetry SDK comes in.
+When imported, the OpenTelemetry trace API creates a global singleton object that lives across the entire scope of your application/service. When we want to create a span to monitor a particular function within the application, we ask the OpenTelemetry API to give us a tracer object that can be called directly to create our spans. One important thing to note, is that the OpenTelemetry API does not come initialized with a functional TracerProvider - The object needed to create tracer objects - we need to configure one. This can be done by importing the TracerProvider class from the SDK, intializing an instance, and pairing it with the API via the set_tracer_provider() function. Without a functional TracerProvider configured, the OpenTelemetry trace API will use a NoopTracerProvider that NoOps (No Operation) when called, doing nothing. The OpenTelemetry API should only be used by itself if you are developing a library or another component that will be consumed by a runnable binary. This allows library authors to add OpenTelemetry instrumentation support without forcing the users of the library to actually utilize OpenTelemetry. If you're not developing a library to be consumed by another binary, then you will certainly need the OpenTelemetry SDK as it contains the implementations that will be used to monitor, process, and export your data.
+
+Here is the code we use to setup OpenTelemetry for the Retail Application:
+
+![retail-setup](assets/retail-setup.png)
+
+We can then acquire a tracer and create spans like this:
+
+![retail-tracer](assets/retail-tracer.png)
 
 Navigate to the `/home/otelworkshop/retailapp` folder by using the following command:
 
