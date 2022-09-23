@@ -14,12 +14,12 @@ This is the first lab of the OpenTelemetry Enablement Series. It focuses on util
 
 ## OpenTelemetry - Introduction
 
-> OpenTelemetry is a collection of tools, APIs, and SDKs that allow users to instrument their applications to collect various sources of telemetry data (metrics, logs, traces). OpenTelemetry is a great alternative if trying to monitor a technology or framework the Dynatrace OneAgent doesn't support for automatic instrumentation and deep monitoring. With OpenTelemetry, you can manually instrument your applications and send the telemetry data to Dynatrace for aggregation and analysis.
+> OpenTelemetry is an open-source observability framework that allow users to instrument their applications to collect various sources of telemetry data (metrics, logs, traces). It offers means to monitor, process, and export your data to any observability backend, like Dynatrace. OpenTelemetry is a great alternative if trying to monitor a technology or framework the Dynatrace OneAgent doesn't support for automatic instrumentation and deep monitoring. You're not limited to one either, the OneAgent can work alongside OpenTelemetry to enrich PurePaths and reduce licensing usage for ingested traces. It can also act as an OpenTelemetry collector and export your data to Dynatrace alongside other OneAgent data, reducing the number of outbound requests needed on the host.
 
 ## OpenTelemetry - Basic Terminology
 
-- Trace -> Equivalent to a PurePath
-- Span
+- Trace -
+- Span - Specific operation in a system
 - Context Propagation
 - W3C Trace Context
   - Span id
@@ -43,11 +43,9 @@ There are three high-level steps involved in sending traces to Dynatrace.
 
 ### 1.) Instrumenting the application with OpenTelemetry
 
-The first step in getting traces to Dynatrace is instrumenting your code with OpenTelemetry to capture the telemetry data. There are two different approaches you can take: manual or automatic instrumentation. Manual instrumentation provides developers with a set of core tools (OpenTelemetry API & SDK) to manually configure the areas of their application they want monitored. If manual instrumentation isn't preferred, auto-instrumentation can be used. For every language/technology that OpenTelemetry supports, there are auto-instrumentation libraries provided for common frameworks used in the language. It is recommended to utilize auto-instrumentation libraries when possible as it reduces the chance of errors being introduced into your application and also reduces the amount of future maintenance required as the library author is responsible for maintaining the instrumentation instead of application developers.
+The first step in getting traces to Dynatrace is instrumenting your code with OpenTelemetry to capture the telemetry data. There are two different approaches you can take: manual or automatic instrumentation. Auto-instrumentation is the recommended approach as it reduces the chance of errors being introduced into your application and also eliminates the possibility of future maintenance to instrumenation code. OpenTelemetry supports many popular frameworks and libraries for auto-instrumentation, refer to the OpenTelemetry website for more information. Manual instrumentation should be used when auto-instrumentation isn't supported or doesn't offer enough observability into a particular transaction, it provides developers with a set of core tools (OpenTelemetry API & SDK) to manually configure the areas of their application they want monitored.
 
-For auto-instrumentation setups, generally all that's required is the library be imported into the application along with a setup call that provides some additonal context (Data source specific configuration, Exporter configuration, Propagator configuration, Resource configuration). (REWORD)
-
-This lab will combine both forms of instrumentation. Our Retail Application uses manual instrumentation to capture some requests related to the cart functionality, while our Currency Service utilizes auto-instrumentation for telemetry. We will break down these instrumentations further in later steps.
+This lab will combine both forms of instrumentation. Our Retail Application uses manual instrumentation to capture some requests related to the cart functionality, while our Currency Service utilizes auto-instrumentation for telemetry. We will break down these instrumentations further in later steps. While both forms of instrumentation are covered, note that not all languages are the same and some have limitations or unique conventions when it comes to instrumentation approaches.
 
 ### 2.) Preparing Dynatrace to receive our traces
 
@@ -59,7 +57,7 @@ The Dynatrace OneAgent can tap-into OpenTelemetry running in your applications a
 
 ![Without-OneAgent](assets/opentelemetry-withoutagent.png)
 
-If you decide to use OpenTelemetry without a OneAgent, you will need to configure some form of exporter to send the traces to the Dynatrace API. Generally, an OpenTelemetry Collector is used to receive, process, and export telemetry data to an observability backend. It offers a vendor-agnostic implementation and removes the need to run, operate, and maintain multiple agents/collectors. However, an OpenTelemetry Collector is not explicitly required. You can simply use an OTLP/HTTP exporter that's provided with the Core SDK. At the moment, the Dynatrace API only supports the OTLP format. Ingesting traces through the API incurs a licensing cost for every span imported.
+If you decide to use OpenTelemetry without a OneAgent, you will need to configure some form of exporter to send the traces to the Dynatrace API. Generally, an OpenTelemetry Collector is used to receive, process, and export telemetry data to an observability backend. It offers a vendor-agnostic implementation and removes the need to run, operate, and maintain multiple agents/collectors. However, an OpenTelemetry Collector is not explicitly required. You can simply use an OTLP/HTTP exporter that's provided with the Core SDK. At the moment, the Dynatrace API only supports the OTLP format. Ingesting traces through the API does incur a licensing cost for every span imported.
 
 ### 3.) Sending the traces to Dynatrace
 
@@ -111,17 +109,64 @@ node server-http.js &
 
 ## Start the Retail Application
 
-Before we start our Retail Application, lets go into a little more detail regarding the manual instrumentation process for this application. When manually instrumenting applications/services, you're going to be using either the OpenTelemetry API, SDK, or both. Oftentimes there's a lot of confusion regarding the API, SDK, and when they're needed. An API is an application programming interface, and the OpenTelemetry API is the object we interface with to accomplish most of our monitoring needs.
+Before we start our Retail Application, lets go into a little more detail regarding the manual instrumentation process for this application. When manually instrumenting applications/services, you're going to be using either the OpenTelemetry API, SDK, or both. Oftentimes there's a lot of confusion regarding the API, SDK, and when they're needed. An API is an application programming interface, and the OpenTelemetry API is the object we interface with to accomplish most of our monitoring needs. You can think of the API as a single object that helps organize and facilitate usage of all the different monitoring utilities imported by the SDK in your application.
 
-When imported, the OpenTelemetry trace API creates a global singleton object that lives across the entire scope of your application/service. When we want to create a span to monitor a particular function within the application, we ask the OpenTelemetry API to give us a tracer object that can be called directly to create our spans. One important thing to note, is that the OpenTelemetry API does not come initialized with a functional TracerProvider - The object needed to create tracer objects - we need to configure one. This can be done by importing the TracerProvider class from the SDK, intializing an instance, and pairing it with the API via the set_tracer_provider() function. Without a functional TracerProvider configured, the OpenTelemetry trace API will use a NoopTracerProvider that NoOps (No Operation) when called, doing nothing. The OpenTelemetry API should only be used by itself if you are developing a library or another component that will be consumed by a runnable binary. This allows library authors to add OpenTelemetry instrumentation support without forcing the users of the library to actually utilize OpenTelemetry. If you're not developing a library to be consumed by another binary, then you will certainly need the OpenTelemetry SDK as it contains the implementations that will be used to monitor, process, and export your data.
+When imported, the OpenTelemetry trace API creates a global singleton object that lives across the entire scope of your application/service. When we want to create a span to monitor a particular function within the application, we ask the OpenTelemetry API to give us a tracer object that can be called directly to create our spans. One important thing to note, is that the OpenTelemetry API does not automatically initialize a functional TracerProvider - The object needed to create tracer objects - we need to configure one. This can be done by importing the TracerProvider class from the SDK, creating an instance, and pairing it with the API via the `set_tracer_provider()` function. Without a functional TracerProvider configured, the OpenTelemetry trace API will use a NoopTracerProvider that NoOps (No Operation) when called, avoiding performance implications. This allows library authors to add OpenTelemetry instrumentation support without forcing the users of the library to actually utilize OpenTelemetry. If you're not developing a library, then you will certainly need the OpenTelemetry SDK as it contains the implementations that will be used to monitor, process, and export your data. The OpenTelemetry API should only be used by itself if you are developing a library or another component that will be consumed by a runnable binary.
 
 Here is the code we use to setup OpenTelemetry for the Retail Application:
 
-![retail-setup](assets/retail-setup.png)
+```python
+import os
+from opentelemetry import trace as OpenTelemetry
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter,
+)
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider, sampling
+from opentelemetry.sdk.trace.export import (
+    BatchSpanProcessor,
+)
+
+def post_fork(server, worker):
+    server.log.info("Worker spawned (pid: %s)", worker.pid)
+
+    # START - OpenTelemetry Intialization
+    merged = dict()
+    for name in ["dt_metadata_e617c525669e072eebe3d0f08212e8f2.json", "/var/lib/dynatrace/enrichment/dt_metadata.json"]:
+        try:
+            data = ''
+            with open(name) as f:
+                data = json.load(f if name.startswith("/var") else open(f.read()))
+                merged.update(data)
+        except:
+            pass
+
+    merged.update({
+        "service.name": "Python Retail App",
+        "service.version": "1.0.1",
+    })
+    resource = Resource.create(merged)
+
+    tracer_provider = TracerProvider(sampler=sampling.ALWAYS_ON, resource=resource)
+
+    tracer_provider.add_span_processor(
+    BatchSpanProcessor(OTLPSpanExporter(
+        endpoint=os.environ.get('DT_TENANT_URL'),
+        headers={
+            "Authorization": ("Api-Token " + os.environ.get("DT_API_TOKEN"))
+        },
+    )))
+
+    OpenTelemetry.set_tracer_provider(tracer_provider)
+    # END - OpenTelemetry Intialization
+```
 
 We can then acquire a tracer and create spans like this:
 
-![retail-tracer](assets/retail-tracer.png)
+```python
+tracer = OpenTelemetry.get_tracer(__name__)
+        with tracer.start_as_current_span("Request to Currency Service", kind=OpenTelemetry.SpanKind.CLIENT) as span:
+```
 
 Navigate to the `/home/otelworkshop/retailapp` folder by using the following command:
 
@@ -132,16 +177,16 @@ cd ~/retailapp
 Before we continue, we need to install the dependencies for the retail application. If prompted for a password, use the same one that was used to login.
 
 ```bash
-./bin/devinstall
+bin/devinstall
 ```
 
-Copy the Nginx configuration file to the Host's Nginx configuration
+Copy the Nginx configuration file to the Host's Nginx configuration:
 
 ```bash
 sudo cp nginx.conf /etc/nginx/
 ```
 
-Restart the Nginx Service
+Restart the Nginx Service:
 
 ```bash
 sudo service nginx restart
@@ -199,9 +244,9 @@ Verify the application started successfully by accessing `AWS-IP:80` in your bro
 
 ## Load Retailapp in Browser And View Traces in Dynatrace
 
-Since the Retail Application is utilizing manual instrumentation, only the parts of the application we instrumented will generate traces. For this lab, most of the functionality surrounding the cart is instrumented. Create an account on the Retail Application to begin adding items to it. Once logged in, add items to your cart and navigate to the cart page to view your total. If the steps were followed correctly, clicking on the convert button should generate a browser pop-up that will display our total in Euro's.
+Since the Retail Application is utilizing manual instrumentation, only the parts of the application we instrumented will generate traces. For this lab, some functionality surrounding the cart is instrumented. Create an account on the Retail Application to begin adding items to it. Once logged in, add items to your cart and navigate to the cart page to view your total. If the steps were followed correctly, clicking on the convert button should generate a browser pop-up that will display our total in Euro's.
 
-After loading the application in your browser and testing the cart functionality, you should notice that something is broken. Our convert button is returning a "-1". Let's take a closer look in Dynatrace to see what's happening. If we look at the generated traces on the distributed traces page, there's a span event on our request indicating the request has failed. In order to view attributes and event attributes in Dynatrace Traces, they need to be whitelisted first. Go ahead and whitelist the event attribute, then generate some more traces so we can get details regarding the request failure.
+After loading the application in your browser and testing the cart functionality, you should notice that something is broken. Our convert button is returning a "-1". Let's take a closer look in Dynatrace to see what's happening. If we look at the generated traces on the distributed traces page, there's a span event on our request indicating the request has failed. In order to view attributes and event attributes in Dynatrace, they need to be whitelisted first. Go ahead and whitelist the event attribute, then generate some more traces so we can get details regarding the request failure.
 
 ![add-event-attribute](assets/add-event-attribute.gif)
 
@@ -211,7 +256,7 @@ After generating addional traces, you should now be able to see the `error_messa
 
 Hit `Ctr + C` to stop the application.
 
-Open our setenv script
+Open our setenv script:
 
 ```bash
 nano ../bin/setenv
@@ -219,7 +264,7 @@ nano ../bin/setenv
 
 Adjust the value of `CURRENCYSERVICE_URL` to `http://localhost:7000`, then save and close the file.
 
-We need to reset the environment variables
+We need to reset the environment variables:
 
 ```bash
 source ../bin/setenv
@@ -237,7 +282,7 @@ gunicorn --bind 0.0.0.0:3005 ecommerce.wsgi:application -c gunicorn.config.py &
 
 Lets take a closer look at the traces we generated. Navigate to the Distributed Traces page and click into the most recent `Request to Currency Service` trace. If we resolved our previous issue, you should notice that the newly ingested spans no longer contain a span event indicating a request failure. Instead, you should see two sections 'Attributes' and 'Resource Attributes' within the trace summary.
 
-OpenTelemetry allows you to provide metadata about your Resources and the Spans they emit via key-value pairs called attributes. We have created a span attribute called `conversion_total` to track the conversion amount returned by the Currency Service. It can be seen that Dynatrace is detecting it within the span attribute section. Like Span event attributes, span attributes need to be whitelisted in Dynatrace in order to show up within Traces. To whitelist the span attribute, you can either do it directly from the indicators in the trace summary or from the Server-side service monitoring section of the Settings menu. Note that we won't see the attribute values in Dynatrace until we generate more traces.
+OpenTelemetry allows you to provide metadata about your Resources and the Spans they emit via key-value pairs called attributes. We have created a span attribute called `conversion_total` to track the conversion amount returned by the Currency Service. It can be seen that Dynatrace is detecting it within the span attribute section. Like Span event attributes, span attributes need to be whitelisted in Dynatrace in order to show up within Traces. To whitelist the span attribute, you can either do it directly from the helpers in the trace summary or from the Server-side service monitoring section of the Settings menu. Note that we won't see the attribute values in Dynatrace until we generate more traces.
 
 ![attributes](assets/save-attribute.gif)
 
