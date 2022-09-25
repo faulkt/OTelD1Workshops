@@ -18,18 +18,22 @@ This is the first lab of the OpenTelemetry Enablement Series. It focuses on util
 
 ## OpenTelemetry - Basic Terminology
 
-- Trace -
-- Span - Specific operation in a system
-- Context Propagation
-- W3C Trace Context
-  - Span id
-  - Parent id
-- Collector
-  - Receiver
-  - Processor
-  - Exporter
-- Automatic instrumentation
-- Manual instrumentation
+- `Span` - Single operation within a transaction.
+- `Trace` - Made of one or more spans, a trace represents a full request propagated though multiple systems.
+- `Context Propagation` - Mechanism(right word??) by which spans can be correlated together across multiple processes to form a distributed trace.
+- `W3C Trace Context` - W3C Standard specifying how context information is sent and modified between services.
+  - `traceparent` - One of two headers defined by the W3C standard. Describes the position of the incoming request in its trace graph in a portable, fixed-length format. It has four fields:
+    - `version` - 1 byte field representing an 8-bit unsigned integer.
+    - `trace-id` - 16-byte array used to uniquely identify a distributed trace though a system.
+    - `parent-id` - 8-byte array used to uniquely identify the caller of a transaction between client and server. Often referred to as span-id in many tracing systems.
+    - `trace-flags` - 1 byte field that controls tracing flags such as sampling, trace level, etc.
+  - `tracestate` - One of two headers defined by the W3C standard. Extends `traceparent` with vendor-specific data represented by a set of name/value pairs. Storing information in `tracestate` is optional.
+- `Span Context` - OpenTelemetry's Implementation of the W3C Trace Context standard.
+  - `traceID` - Unique, 16-byte array to identify the trace that a span is associated with.
+  - `spanID` - Hex-encoded, 8-byte array to identify the current span.
+  - `Trace Flags` - Provides more detail about the trace.
+  - `Trace State` - Provides more vendor-specific information for tracing across multiple distributed systems.
+- `Collector` - Vendor-agnostic implementation that receives, processes, and exports telemetry data to an observability backend.
 
 <!-- ------------------------ -->
 
@@ -244,7 +248,7 @@ Verify the application started successfully by accessing `AWS-IP:80` in your bro
 
 ## Load Retailapp in Browser And View Traces in Dynatrace
 
-Since the Retail Application is utilizing manual instrumentation, only the parts of the application we instrumented will generate traces. For this lab, some functionality surrounding the cart is instrumented. Create an account on the Retail Application to begin adding items to it. Once logged in, add items to your cart and navigate to the cart page to view your total. If the steps were followed correctly, clicking on the convert button should generate a browser pop-up that will display our total in Euro's.
+Since the Retail Application is utilizing manual instrumentation, only the parts of the application we instrumented will generate traces. For this lab, a request to the Currency Service is instrumented. Create an account on the Retail Application to begin adding items to it. Once logged in, add items to your cart and navigate to the cart page to view your total. If the steps were followed correctly, clicking on the convert button should generate a browser pop-up that will display our total in Euro's.
 
 After loading the application in your browser and testing the cart functionality, you should notice that something is broken. Our convert button is returning a "-1". Let's take a closer look in Dynatrace to see what's happening. If we look at the generated traces on the distributed traces page, there's a span event on our request indicating the request has failed. In order to view attributes and event attributes in Dynatrace, they need to be whitelisted first. Go ahead and whitelist the event attribute, then generate some more traces so we can get details regarding the request failure.
 
